@@ -143,9 +143,13 @@ module RailsBackupMigrate
         ActiveRecord::Base.transaction do 
         
           puts "Loading #{tbl}..." if VERBOSE
+          insert_query = reload_ids = ""
           YAML.load_file("#{tbl}.yml").each do |fixture|
-            ActiveRecord::Base.connection.execute "INSERT INTO #{tbl} (#{fixture.keys.map{|k| ActiveRecord::Base.connection.quote_column_name k}.join(",")}) VALUES (#{fixture.values.collect { |value| ActiveRecord::Base.connection.quote(value) }.join(",")})", 'Fixture Insert'
-          end        
+            insert_query += "INSERT INTO #{tbl} (#{fixture.keys.map{|k| ActiveRecord::Base.connection.quote_column_name k}.join(",")}) VALUES (#{fixture.values.collect { |value| ActiveRecord::Base.connection.quote(value) }.join(",")}); "
+            reload_ids += "SELECT setval('#{tbl}_id_seq', (SELECT MAX(id) + 1 FROM #{tbl})); "
+          end
+          ActiveRecord::Base.connection.execute(insert_query, 'Fixture Insert')
+          ActiveRecord::Base.connection.execute(reload_ids, 'Schema Update')
         end
       end
     end
